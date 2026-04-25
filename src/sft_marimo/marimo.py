@@ -327,21 +327,36 @@ def _start_local_agent(
     mount_path: str,
     agent_port: int,
     host_info: HostInfo,
-    remote_path: str,
+    remote_root: str,
     ctx: ExecutionContext,
 ) -> Tuple[int, int]:
     """Start local OpenCode ACP agent under mount path.
 
+    Args:
+        mount_path: Local SSHFS mount directory (e.g. ~/mnt/wsl-rs/home/user/project).
+        agent_port: Local port for the ACP WebSocket server.
+        host_info: Remote host information.
+        remote_root: Remote project root directory (must match what was mounted).
+        ctx: Execution context.
+
     Returns (pid, process_group).
     """
+    abs_mount = os.path.abspath(os.path.expanduser(mount_path))
     extra_config = json.dumps(
         {
             "instructions": [
                 f"MARIMO_REMOTE_HOST={host_info.name}",
-                f"MARIMO_REMOTE_PATH={remote_path}",
-                f"MARIMO_LOCAL_MOUNT={mount_path}",
-                "When marimo tools return remote paths like "
-                f"/home/... → map to {mount_path}/... for local file operations.",
+                f"MARIMO_REMOTE_ROOT={remote_root}",
+                f"MARIMO_LOCAL_MOUNT={abs_mount}",
+                "PATH MAPPING RULE (MANDATORY):",
+                "  All file tool operations must use LOCAL paths.",
+                "  Translate remote paths to local by prefix replacement:",
+                f"    Remote prefix: {remote_root}",
+                f"    Local  prefix: {abs_mount}",
+                f"  Example: {remote_root}/foo.py -> {abs_mount}/foo.py",
+                f"  Any absolute path starting with '{remote_root}' must be rewritten"
+                f" to start with '{abs_mount}'.",
+                f"  Relative paths are relative to {abs_mount} and work as-is.",
                 "For marimo notebook edits, prefer ACP tools "
                 "(edit_notebook, run_stale_cells) over direct file edits.",
             ]
@@ -610,7 +625,7 @@ def cmd_marimo_start(args, ctx: ExecutionContext) -> None:
     if not no_agent:
         try:
             agent_pid, agent_pg = _start_local_agent(
-                mount_path, agent_port, host_info, remote_path, ctx
+                mount_path, agent_port, host_info, project_root, ctx
             )
             # Brief wait for agent to bind
             time.sleep(2)
@@ -634,7 +649,7 @@ def cmd_marimo_start(args, ctx: ExecutionContext) -> None:
         "host": host_info.name,
         "remote_path": project_root,
         "notebook_file": notebook_file,
-        "mount_path": os.path.abspath(mount_path),
+        "mount_path": os.path.abspath(os.path.expanduser(mount_path)),
         "marimo_port": marimo_port,
         "agent_port": agent_port,
         "marimo_url": marimo_url,
@@ -648,6 +663,10 @@ def cmd_marimo_start(args, ctx: ExecutionContext) -> None:
         "remote_flake_dir": remote_flake_dir,
         "started_at": datetime.datetime.now().isoformat(),
         "status": "running",
+        "path_mapping": {
+            "remote_root": project_root,
+            "local_mount": os.path.abspath(os.path.expanduser(mount_path)),
+        },
     }
     session_id = save_session(session)
     _current_session_id = session_id

@@ -32,6 +32,7 @@ from sft_marimo.marimo import (
     _capture_marimo_token,
     _cleanup_session,
     _detect_remote_flake,
+    _start_local_agent,
 )
 
 
@@ -572,6 +573,66 @@ class TestMarimoCliParsing(unittest.TestCase):
         """marimo without subcommand should still parse (shows help)."""
         args = self._parse(["sft", "marimo"])
         self.assertIsNone(getattr(args, "marimo_command", None))
+
+
+# --- Path mapping in agent config tests ---
+
+
+class TestStartLocalAgentPathMapping(unittest.TestCase):
+    """Test that _start_local_agent generates precise path mapping config."""
+
+    @patch("subprocess.Popen")
+    def test_config_contains_exact_prefix_mapping(self, mock_popen):
+        mock_popen.return_value = MagicMock(pid=12345)
+        _start_local_agent(
+            mount_path="/home/user/mnt/wsl-rs/home/user/project",
+            agent_port=3023,
+            host_info=HostInfo("wsl-rs", "1.2.3.4", 22, "u", [], {}),
+            remote_root="/home/user/project",
+            ctx=MagicMock(),
+        )
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs["env"]
+        config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
+        instructions = config["instructions"]
+        all_text = " ".join(instructions)
+        # Must contain the exact remote root and local mount
+        self.assertIn("/home/user/project", all_text)
+        self.assertIn("/home/user/mnt/wsl-rs/home/user/project", all_text)
+        # Must contain mandatory mapping instruction
+        self.assertIn("MANDATORY", all_text)
+
+    @patch("subprocess.Popen")
+    def test_config_uses_absolute_mount_path(self, mock_popen):
+        mock_popen.return_value = MagicMock(pid=12345)
+        _start_local_agent(
+            mount_path="~/mnt/wsl-rs/home/user/project",
+            agent_port=3023,
+            host_info=HostInfo("wsl-rs", "1.2.3.4", 22, "u", [], {}),
+            remote_root="/home/user/project",
+            ctx=MagicMock(),
+        )
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs["env"]
+        config = json.loads(env["OPENCODE_CONFIG_CONTENT"])
+        instructions = config["instructions"]
+        all_text = " ".join(instructions)
+        # Should use absolute path, not tilde
+        self.assertNotIn("~", all_text)
+        self.assertIn(os.path.abspath(os.path.expanduser("~/mnt/wsl-rs/home/user/project")), all_text)
+
+    @patch("subprocess.Popen")
+    def test_cwd_set_to_mount_path(self, mock_popen):
+        mock_popen.return_value = MagicMock(pid=12345)
+        _start_local_agent(
+            mount_path="/mnt/project",
+            agent_port=3023,
+            host_info=HostInfo("h", "1.2.3.4", 22, "u", [], {}),
+            remote_root="/home/user/project",
+            ctx=MagicMock(),
+        )
+        call_kwargs = mock_popen.call_args[1]
+        self.assertEqual(call_kwargs["cwd"], "/mnt/project")
 
 
 if __name__ == "__main__":
