@@ -332,6 +332,14 @@ def _start_local_agent(
 ) -> Tuple[int, int]:
     """Start local OpenCode ACP agent under mount path.
 
+    Spawns::
+
+        stdio-to-ws → acp_path_filter.py → opencode acp
+
+    The path filter intercepts JSON-RPC messages between marimo and
+    opencode, rewriting filesystem paths so that opencode sees local
+    SSHFS paths while marimo continues using remote absolute paths.
+
     Args:
         mount_path: Local SSHFS mount directory (e.g. ~/mnt/wsl-rs/home/user/project).
         agent_port: Local port for the ACP WebSocket server.
@@ -342,6 +350,10 @@ def _start_local_agent(
     Returns (pid, process_group).
     """
     abs_mount = os.path.abspath(os.path.expanduser(mount_path))
+
+    # Locate the path filter script (shipped alongside this module)
+    filter_script = os.path.join(os.path.dirname(__file__), "acp_path_filter.py")
+
     extra_config = json.dumps(
         {
             "instructions": [
@@ -365,8 +377,15 @@ def _start_local_agent(
     env = os.environ.copy()
     env["OPENCODE_CONFIG_CONTENT"] = extra_config
 
+    # Build the command: stdio-to-ws → path-filter → opencode acp
+    inner_cmd = (
+        f"{shlex.quote(sys.executable)} {shlex.quote(filter_script)}"
+        f" --remote-root {shlex.quote(remote_root)}"
+        f" --local-mount {shlex.quote(abs_mount)}"
+        f" -- opencode acp"
+    )
     proc = subprocess.Popen(
-        ["npx", "stdio-to-ws", "opencode acp", "--port", str(agent_port)],
+        ["npx", "stdio-to-ws", inner_cmd, "--port", str(agent_port)],
         cwd=mount_path,
         env=env,
         stdin=subprocess.DEVNULL,
