@@ -11,7 +11,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-sft_lib = os.path.join(os.path.dirname(__file__), "..", "lib")
+sft_lib = os.path.join(os.path.dirname(__file__), "..", "src")
+sft_marimo_lib = os.path.join(os.path.dirname(__file__), "..", "src")
 sys.path.insert(0, sft_lib)
 
 from sft.config import HostInfo
@@ -25,7 +26,7 @@ from sft.state import (
 )
 
 # Import pure helpers from marimo module
-from sft.commands.marimo import (
+from sft_marimo.marimo import (
     _find_free_port,
     _fmt_duration,
     _capture_marimo_token,
@@ -160,11 +161,11 @@ class TestDetectRemoteFlake(unittest.TestCase):
         # parse_envrc_flake_full_remote returns (flake_path, flags)
         with (
             patch(
-                "sft.commands.marimo.find_envrc_dir_remote",
+                "sft_marimo.marimo.find_envrc_dir_remote",
                 return_value="/home/user/project",
             ),
             patch(
-                "sft.commands.marimo.parse_envrc_flake_full_remote",
+                "sft_marimo.marimo.parse_envrc_flake_full_remote",
                 return_value=("/home/user/project", ["--impure"]),
             ),
         ):
@@ -176,7 +177,7 @@ class TestDetectRemoteFlake(unittest.TestCase):
 
     def test_returns_none_when_no_envrc(self):
         ctx = MagicMock()
-        with patch("sft.commands.marimo.find_envrc_dir_remote", return_value=None):
+        with patch("sft_marimo.marimo.find_envrc_dir_remote", return_value=None):
             flake_dir, flags = _detect_remote_flake(
                 self._make_host(), "/home/user/project", ctx
             )
@@ -189,11 +190,11 @@ class TestDetectRemoteFlake(unittest.TestCase):
         ctx.run_ssh = MagicMock(side_effect=RuntimeError("not found"))
         with (
             patch(
-                "sft.commands.marimo.find_envrc_dir_remote",
+                "sft_marimo.marimo.find_envrc_dir_remote",
                 return_value="/home/user/project",
             ),
             patch(
-                "sft.commands.marimo.parse_envrc_flake_full_remote", return_value=None
+                "sft_marimo.marimo.parse_envrc_flake_full_remote", return_value=None
             ),
         ):
             flake_dir, flags = _detect_remote_flake(
@@ -207,11 +208,11 @@ class TestDetectRemoteFlake(unittest.TestCase):
         ctx = MagicMock()
         with (
             patch(
-                "sft.commands.marimo.find_envrc_dir_remote",
+                "sft_marimo.marimo.find_envrc_dir_remote",
                 return_value="/home/user/project",
             ),
             patch(
-                "sft.commands.marimo.parse_envrc_flake_full_remote",
+                "sft_marimo.marimo.parse_envrc_flake_full_remote",
                 return_value=("", []),
             ),
         ):
@@ -227,11 +228,11 @@ class TestDetectRemoteFlake(unittest.TestCase):
         ctx.run_ssh = MagicMock()
         with (
             patch(
-                "sft.commands.marimo.find_envrc_dir_remote",
+                "sft_marimo.marimo.find_envrc_dir_remote",
                 return_value="/home/user/project",
             ),
             patch(
-                "sft.commands.marimo.parse_envrc_flake_full_remote", return_value=None
+                "sft_marimo.marimo.parse_envrc_flake_full_remote", return_value=None
             ),
         ):
             flake_dir, flags = _detect_remote_flake(
@@ -246,11 +247,11 @@ class TestDetectRemoteFlake(unittest.TestCase):
         ctx.run_ssh = MagicMock(side_effect=RuntimeError("not found"))
         with (
             patch(
-                "sft.commands.marimo.find_envrc_dir_remote",
+                "sft_marimo.marimo.find_envrc_dir_remote",
                 return_value="/home/user/project",
             ),
             patch(
-                "sft.commands.marimo.parse_envrc_flake_full_remote", return_value=None
+                "sft_marimo.marimo.parse_envrc_flake_full_remote", return_value=None
             ),
         ):
             flake_dir, flags = _detect_remote_flake(
@@ -408,15 +409,15 @@ class TestCleanupSession(unittest.TestCase):
         session.update(overrides)
         return session
 
-    @patch("sft.commands.marimo.load_session")
-    @patch("sft.commands.marimo.remove_session")
+    @patch("sft_marimo.marimo.load_session")
+    @patch("sft_marimo.marimo.remove_session")
     def test_cleanup_kills_processes(self, mock_remove, mock_load):
         session = self._make_session()
         mock_load.return_value = session
 
         with (
             patch("os.killpg") as mock_killpg,
-            patch("sft.commands.marimo.is_mount_alive", return_value=False),
+            patch("sft_marimo.marimo.is_mount_alive", return_value=False),
             patch("sft.commands.mount.resolve_target"),
         ):
             _cleanup_session("test-session")
@@ -425,8 +426,8 @@ class TestCleanupSession(unittest.TestCase):
         self.assertEqual(mock_killpg.call_count, 2)
         mock_remove.assert_called_once_with("test-session")
 
-    @patch("sft.commands.marimo.load_session")
-    @patch("sft.commands.marimo.remove_session")
+    @patch("sft_marimo.marimo.load_session")
+    @patch("sft_marimo.marimo.remove_session")
     def test_cleanup_handles_process_not_found(self, mock_remove, mock_load):
         session = self._make_session()
         mock_load.return_value = session
@@ -435,7 +436,7 @@ class TestCleanupSession(unittest.TestCase):
 
         with (
             patch("os.killpg", side_effect=ProcessLookupError) as mock_killpg,
-            patch("sft.commands.marimo.is_mount_alive", return_value=False),
+            patch("sft_marimo.marimo.is_mount_alive", return_value=False),
             patch("sft.commands.mount.resolve_target"),
         ):
             # Should not raise
@@ -443,8 +444,8 @@ class TestCleanupSession(unittest.TestCase):
 
         mock_remove.assert_called_once()
 
-    @patch("sft.commands.marimo.load_session")
-    @patch("sft.commands.marimo.remove_session")
+    @patch("sft_marimo.marimo.load_session")
+    @patch("sft_marimo.marimo.remove_session")
     def test_cleanup_no_owned_mount_skips_unmount(self, mock_remove, mock_load):
         session = self._make_session(owned_mount=False, owned_marimo=False)
         mock_load.return_value = session
@@ -452,7 +453,7 @@ class TestCleanupSession(unittest.TestCase):
         with (
             patch("os.killpg"),
             patch(
-                "sft.commands.marimo.is_mount_alive", return_value=False
+                "sft_marimo.marimo.is_mount_alive", return_value=False
             ) as mock_alive,
         ):
             _cleanup_session("test-session")
@@ -461,22 +462,22 @@ class TestCleanupSession(unittest.TestCase):
         mock_alive.assert_not_called()
         mock_remove.assert_called_once()
 
-    @patch("sft.commands.marimo.load_session")
-    @patch("sft.commands.marimo.remove_session")
+    @patch("sft_marimo.marimo.load_session")
+    @patch("sft_marimo.marimo.remove_session")
     def test_cleanup_no_session_is_noop(self, mock_remove, mock_load):
         mock_load.return_value = None
         _cleanup_session("nonexistent")
         mock_remove.assert_not_called()
 
-    @patch("sft.commands.marimo.load_session")
-    @patch("sft.commands.marimo.remove_session")
+    @patch("sft_marimo.marimo.load_session")
+    @patch("sft_marimo.marimo.remove_session")
     def test_cleanup_unmounts_owned_mount(self, mock_remove, mock_load):
         session = self._make_session(owned_mount=True, owned_marimo=False)
         mock_load.return_value = session
 
         with (
             patch("os.killpg"),
-            patch("sft.commands.marimo.is_mount_alive", return_value=True),
+            patch("sft_marimo.marimo.is_mount_alive", return_value=True),
             patch("shutil.which", return_value="fusermount"),
             patch("subprocess.run") as mock_run,
         ):
@@ -494,6 +495,13 @@ class TestCleanupSession(unittest.TestCase):
 
 class TestMarimoCliParsing(unittest.TestCase):
     """Test marimo subcommand argument parsing."""
+
+    @classmethod
+    def setUpClass(cls):
+        # Ensure plugins are discovered so marimo subcommand parsers are registered
+        from sft.plugins import discover_plugins
+
+        discover_plugins()
 
     def _parse(self, argv):
         from sft.cli import parse_args

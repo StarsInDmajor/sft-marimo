@@ -10,10 +10,28 @@ from sft.plugins import register_subcommand, register_subcommand_parser
 from sft_marimo.marimo import cmd_marimo_start, cmd_marimo_status, cmd_marimo_stop, cmd_marimo_list
 
 
-def register() -> None:
-    """Register marimo subcommands with sft."""
-    register_subcommand("marimo", _dispatch_marimo)
-    register_subcommand_parser("marimo", _add_marimo_parser)
+MARIMO_COMMANDS = {
+    "start": cmd_marimo_start,
+    "status": cmd_marimo_status,
+    "stop": cmd_marimo_stop,
+    "list": cmd_marimo_list,
+}
+
+
+def _dispatch_marimo(args, ctx) -> None:
+    import sys
+
+    marimo_cmd = getattr(args, "marimo_command", None)
+    if not marimo_cmd:
+        remaining = [a for a in sys.argv[2:] if not a.startswith("-")]
+        if remaining and remaining[0] not in MARIMO_COMMANDS:
+            sys.argv.insert(2, "start")
+            marimo_cmd = "start"
+    if marimo_cmd and marimo_cmd in MARIMO_COMMANDS:
+        MARIMO_COMMANDS[marimo_cmd](args, ctx)
+    else:
+        print("Usage: sft marimo {start,status,stop,list}", file=sys.stderr)
+        sys.exit(1)
 
 
 def _add_marimo_parser(subparsers, global_parent) -> None:
@@ -51,26 +69,11 @@ def _add_marimo_parser(subparsers, global_parent) -> None:
     marimo_sub.add_parser("list", help="List all marimo sessions", parents=[global_parent])
 
 
-MARIMO_COMMANDS = {
-    "start": cmd_marimo_start,
-    "status": cmd_marimo_status,
-    "stop": cmd_marimo_stop,
-    "list": cmd_marimo_list,
-}
+def register() -> None:
+    """Register marimo subcommands with sft."""
+    register_subcommand("marimo", _dispatch_marimo)
+    register_subcommand_parser("marimo", _add_marimo_parser)
 
 
-def _dispatch_marimo(args, ctx) -> None:
-    import sys
-
-    marimo_cmd = getattr(args, "marimo_command", None)
-    if not marimo_cmd:
-        remaining = [a for a in sys.argv[2:] if not a.startswith("-")]
-        if remaining and remaining[0] not in MARIMO_COMMANDS:
-            sys.argv.insert(2, "start")
-            # Re-parse is needed but complex; just call start
-            marimo_cmd = "start"
-    if marimo_cmd and marimo_cmd in MARIMO_COMMANDS:
-        MARIMO_COMMANDS[marimo_cmd](args, ctx)
-    else:
-        print("Usage: sft marimo {start,status,stop,list}", file=__import__("sys").stderr)
-        __import__("sys").exit(1)
+# Auto-register on import so that discover_plugins() via ep.load() activates us.
+register()
