@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sft-marimo"
+version = "0.1.0"
+description = "Marimo notebook plugin for sft — remote notebook + local ACP agent orchestration"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "pulcerto" }]
+dependencies = ["sft"]
+
+[project.entry-points."sft.plugins"]
+marimo = "sft_marimo.hooks"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sft_marimo"]
