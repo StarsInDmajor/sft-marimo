@@ -193,7 +193,7 @@ def _launch_remote_marimo(
     marimo_target = notebook_file or project_root
     marimo_cmd = (
         f"{shlex.quote(marimo_bin)} edit "
-        f"--headless --port {port} {shlex.quote(marimo_target)}"
+        f"--headless --watch --port {port} {shlex.quote(marimo_target)}"
     )
 
     if remote_flake_dir:
@@ -329,6 +329,9 @@ def _start_local_agent(
     host_info: HostInfo,
     remote_root: str,
     ctx: ExecutionContext,
+    *,
+    marimo_port: int = 0,
+    marimo_token: str = "",
 ) -> Tuple[int, int]:
     """Start local OpenCode ACP agent under mount path.
 
@@ -340,12 +343,17 @@ def _start_local_agent(
     opencode, rewriting filesystem paths so that opencode sees local
     SSHFS paths while marimo continues using remote absolute paths.
 
+    If ``marimo_port`` is set, the agent also gets MCP tools for
+    executing notebook cells via a local ``marimo-mcp`` subprocess.
+
     Args:
         mount_path: Local SSHFS mount directory (e.g. ~/mnt/wsl-rs/home/user/project).
         agent_port: Local port for the ACP WebSocket server.
         host_info: Remote host information.
         remote_root: Remote project root directory (must match what was mounted).
         ctx: Execution context.
+        marimo_port: Marimo HTTP port on localhost (via port forward).
+        marimo_token: Marimo auth token (may be empty if --no-token).
 
     Returns (pid, process_group).
     """
@@ -354,8 +362,36 @@ def _start_local_agent(
     # Locate the path filter script (shipped alongside this module)
     filter_script = os.path.join(os.path.dirname(__file__), "acp_path_filter.py")
 
+    # Locate the marimo-mcp binary (installed alongside sft-marimo)
+    marimo_mcp_bin = shutil.which("marimo-mcp") or ""
+
+    # Build MCP config if marimo port is available
+    mcp_config = {}
+    mcp_permissions = {}
+    if marimo_port and marimo_mcp_bin:
+        marimo_url = f"http://localhost:{marimo_port}"
+        mcp_config["marimo"] = {
+            "type": "local",
+            "command": [marimo_mcp_bin],
+            "environment": {
+                "MARIMO_URL": marimo_url,
+                "MARIMO_TOKEN": marimo_token,
+            },
+        }
+        # Pre-approve all marimo MCP tools
+        for tool_name in [
+            "list_cells",
+            "run_cell",
+            "execute_code",
+            "get_cell_info",
+            "get_cell_output",
+        ]:
+            mcp_permissions[f"marimo_{tool_name}"] = "allow"
+
     extra_config = json.dumps(
         {
+            **({"mcp": mcp_config} if mcp_config else {}),
+            **({"permission": mcp_permissions} if mcp_permissions else {}),
             "instructions": [
                 f"MARIMO_REMOTE_HOST={host_info.name}",
                 f"MARIMO_REMOTE_ROOT={remote_root}",
@@ -369,9 +405,33 @@ def _start_local_agent(
                 f"  Any absolute path starting with '{remote_root}' must be rewritten"
                 f" to start with '{abs_mount}'.",
                 f"  Relative paths are relative to {abs_mount} and work as-is.",
-                "For marimo notebook edits, prefer ACP tools "
-                "(edit_notebook, run_stale_cells) over direct file edits.",
+                "MARIMO FILE WATCH: marimo is running with --watch enabled.",
+                "  Edits made via the `edit` tool will automatically propagate"
+                " to the marimo web UI.",
+                "  No manual refresh is needed.",
             ]
+            + (
+                [
+                    "",
+                    "MARIMO CELL EXECUTION:",
+                    "  You have MCP tools to execute and inspect notebook cells.",
+                    "  - list_cells: See all cells, their IDs, code, and status.",
+                    "  - run_cell(cell_id, code?): Execute a cell and get output."
+                    " Updates the notebook UI.",
+                    "  - execute_code(code): Run arbitrary Python in the kernel."
+                    " Quick computations, does NOT update notebook UI.",
+                    "  - get_cell_info(cell_id): View a cell's full code.",
+                    "  - get_cell_output(cell_id): View cell output.",
+                    "",
+                    "WORKFLOW for modifying and running a cell:",
+                    "  1. Use edit tool to modify cell code in the .py file.",
+                    "  2. --watch auto-syncs changes to marimo UI.",
+                    "  3. Use run_cell(cell_id) to execute and see results.",
+                    "  4. Or use execute_code(code) for quick one-off computations.",
+                ]
+                if mcp_config
+                else []
+            ),
         }
     )
     env = os.environ.copy()
@@ -644,7 +704,9 @@ def cmd_marimo_start(args, ctx: ExecutionContext) -> None:
     if not no_agent:
         try:
             agent_pid, agent_pg = _start_local_agent(
-                mount_path, agent_port, host_info, project_root, ctx
+                mount_path, agent_port, host_info, project_root, ctx,
+                marimo_port=marimo_port,
+                marimo_token=token,
             )
             # Brief wait for agent to bind
             time.sleep(2)

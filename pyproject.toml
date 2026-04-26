@@ -10,10 +10,13 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "pulcerto" }]
-dependencies = ["sft"]
+dependencies = ["sft", "mcp>=1.0"]
 
 [project.entry-points."sft.plugins"]
 marimo = "sft_marimo.hooks"
+
+[project.scripts]
+marimo-mcp = "sft_marimo.marimo_mcp:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sft_marimo"]
