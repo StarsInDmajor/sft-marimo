@@ -347,7 +347,7 @@ def _start_local_agent(
     executing notebook cells via a local ``marimo-mcp`` subprocess.
 
     Args:
-        mount_path: Local SSHFS mount directory (e.g. ~/mnt/wsl-rs/home/user/project).
+        mount_path: Local SSHFS mount directory (e.g. ~/mnt/myhost/home/user/project).
         agent_port: Local port for the ACP WebSocket server.
         host_info: Remote host information.
         remote_root: Remote project root directory (must match what was mounted).

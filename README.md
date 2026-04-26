@@ -102,7 +102,7 @@ On the **remote** machine:
 
 ```bash
 # Test marimo module directly
-PYTHONPATH=~/Workspace/sft/src:~/Workspace/sft-marimo/src \
+PYTHONPATH=../sft/src:src \
   python3 -c "from sft_marimo.marimo import cmd_marimo_list; print('ok')"
 ```
 

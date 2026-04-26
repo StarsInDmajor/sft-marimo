@@ -9,14 +9,11 @@ import sys
 import tempfile
 import unittest
 
-# Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from sft_marimo.acp_path_filter import _replace_in_string, _rewrite_strings, rewrite_line
 
 
-REMOTE = "/home/pulcerto/Workspace/PRML/project1"
-LOCAL = "/home/pulcerto/mnt/wsl-rs/home/pulcerto/Workspace/PRML/project1"
+REMOTE = "/home/user/projects/myproject"
+LOCAL = "/home/user/mnt/myhost/home/user/projects/myproject"
 
 
 class TestReplaceInString(unittest.TestCase):
@@ -24,20 +21,20 @@ class TestReplaceInString(unittest.TestCase):
 
     def test_exact_match(self):
         self.assertEqual(
-            _replace_in_string(REMOTE + "/bgfs-baseline.py", REMOTE, LOCAL),
-            LOCAL + "/bgfs-baseline.py",
+            _replace_in_string(REMOTE + "/main.py", REMOTE, LOCAL),
+            LOCAL + "/main.py",
         )
 
     def test_exact_match_no_remainder(self):
         self.assertEqual(_replace_in_string(REMOTE, REMOTE, LOCAL), LOCAL)
 
     def test_no_match(self):
-        path = "/home/pulcerto/Workspace/PRML/project2/file.py"
+        path = "/home/user/projects/other/file.py"
         self.assertEqual(_replace_in_string(path, REMOTE, LOCAL), path)
 
     def test_partial_no_match(self):
-        """'/home/pulcerto/Workspace/PRML/project1x' should NOT match."""
-        path = "/home/pulcerto/Workspace/PRML/project1x/file.py"
+        """'/home/user/projects/myprojectx' should NOT match."""
+        path = "/home/user/projects/myprojectx/file.py"
         self.assertEqual(_replace_in_string(path, REMOTE, LOCAL), path)
 
     def test_empty_string(self):
@@ -48,19 +45,19 @@ class TestReplaceInString(unittest.TestCase):
 
     def test_embedded_in_text(self):
         """Path embedded in a longer string should be rewritten."""
-        text = "You can read or write to the notebook at " + REMOTE + "/bgfs-baseline.py"
+        text = "You can read or write to the notebook at " + REMOTE + "/main.py"
         result = _replace_in_string(text, REMOTE, LOCAL)
         # The remote path gets replaced with local mount path
-        self.assertIn(LOCAL + "/bgfs-baseline.py", result)
+        self.assertIn(LOCAL + "/main.py", result)
         # Note: REMOTE is a substring of LOCAL (due to mirrored mount layout),
         # so we check the original text position is gone by checking the
         # text before the path is preserved.
         self.assertTrue(result.startswith("You can read or write to the notebook at " + LOCAL))
 
     def test_embedded_in_xml(self):
-        text = "<path>" + REMOTE + "/bgfs-baseline.py</path>"
+        text = "<path>" + REMOTE + "/main.py</path>"
         result = _replace_in_string(text, REMOTE, LOCAL)
-        self.assertEqual(result, "<path>" + LOCAL + "/bgfs-baseline.py</path>")
+        self.assertEqual(result, "<path>" + LOCAL + "/main.py</path>")
 
     def test_multiple_occurrences(self):
         text = REMOTE + "/a.py and " + REMOTE + "/b.py"
@@ -154,7 +151,7 @@ class TestRewriteLine(unittest.TestCase):
             "callID": "call_00_abc123",
             "state": {
                 "status": "completed",
-                "input": {"filePath": REMOTE + "/bgfs-baseline.py"},
+                "input": {"filePath": REMOTE + "/main.py"},
                 "output": "file contents here",
             },
         }
@@ -162,7 +159,7 @@ class TestRewriteLine(unittest.TestCase):
         result = rewrite_line(line, REMOTE, LOCAL)
         parsed = json.loads(result.strip())
         self.assertEqual(
-            parsed["state"]["input"]["filePath"], LOCAL + "/bgfs-baseline.py"
+            parsed["state"]["input"]["filePath"], LOCAL + "/main.py"
         )
         # output doesn't contain the remote path, should be unchanged
         self.assertEqual(parsed["state"]["output"], "file contents here")
@@ -174,8 +171,8 @@ class TestRewriteLine(unittest.TestCase):
             "tool": "read",
             "state": {
                 "status": "completed",
-                "input": {"filePath": LOCAL + "/bgfs-baseline.py"},
-                "output": "<path>" + LOCAL + "/bgfs-baseline.py</path>",
+                "input": {"filePath": LOCAL + "/main.py"},
+                "output": "<path>" + LOCAL + "/main.py</path>",
             },
         }
         line = json.dumps(msg) + "\n"
@@ -183,7 +180,7 @@ class TestRewriteLine(unittest.TestCase):
         parsed = json.loads(result.strip())
         # Both the filePath and the embedded path in output get rewritten
         self.assertEqual(
-            parsed["state"]["input"]["filePath"], REMOTE + "/bgfs-baseline.py"
+            parsed["state"]["input"]["filePath"], REMOTE + "/main.py"
         )
         self.assertIn(REMOTE, parsed["state"]["output"])
 
@@ -193,13 +190,13 @@ class TestRewriteLine(unittest.TestCase):
             "type": "text",
             "text": "You can read or write to the notebook at "
             + REMOTE
-            + "/bgfs-baseline.py",
+            + "/main.py",
         }
         line = json.dumps(msg) + "\n"
         result = rewrite_line(line, REMOTE, LOCAL)
         parsed = json.loads(result.strip())
         # The path in the system prompt should be rewritten to local mount
-        self.assertIn(LOCAL + "/bgfs-baseline.py", parsed["text"])
+        self.assertIn(LOCAL + "/main.py", parsed["text"])
 
     def test_multiple_paths_in_one_message(self):
         msg = {

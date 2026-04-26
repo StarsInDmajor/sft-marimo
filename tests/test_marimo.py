@@ -11,10 +11,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-sft_lib = os.path.join(os.path.dirname(__file__), "..", "src")
-sft_marimo_lib = os.path.join(os.path.dirname(__file__), "..", "src")
-sys.path.insert(0, sft_lib)
-
 from sft.config import HostInfo
 from sft.state import (
     save_session,
@@ -64,7 +60,7 @@ class TestSessionState(unittest.TestCase):
     def test_save_and_load_session(self):
         self._patch_dir()
         session = {
-            "host": "wsl-rs",
+            "host": "myhost",
             "remote_path": "/home/user/project",
             "marimo_port": 8686,
             "status": "running",
@@ -75,18 +71,18 @@ class TestSessionState(unittest.TestCase):
 
         loaded = load_session(sid)
         self.assertIsNotNone(loaded)
-        self.assertEqual(loaded["host"], "wsl-rs")
+        self.assertEqual(loaded["host"], "myhost")
         self.assertEqual(loaded["marimo_port"], 8686)
 
     def test_save_auto_generates_id(self):
         self._patch_dir()
         session = {
-            "host": "wsl-rs",
+            "host": "myhost",
             "remote_path": "/home/user/myproject",
         }
         sid = save_session(session)
-        # Should be like "wsl-rs-myproject-260424"
-        self.assertIn("wsl-rs", sid)
+        # Should be like "myhost-myproject-260424"
+        self.assertIn("myhost", sid)
         self.assertIn("myproject", sid)
 
     def test_save_preserves_explicit_id(self):
@@ -395,7 +391,7 @@ class TestCleanupSession(unittest.TestCase):
     def _make_session(self, **overrides):
         session = {
             "id": "test-session",
-            "host": "wsl-rs",
+            "host": "myhost",
             "remote_path": "/home/user/project",
             "mount_path": "/tmp/mnt/project",
             "marimo_port": 8686,
@@ -515,37 +511,37 @@ class TestMarimoCliParsing(unittest.TestCase):
             sys.argv = old
 
     def test_marimo_start_basic(self):
-        args = self._parse(["sft", "marimo", "start", "wsl-rs:~/project"])
-        self.assertEqual(args.target, "wsl-rs:~/project")
+        args = self._parse(["sft", "marimo", "start", "myhost:~/project"])
+        self.assertEqual(args.target, "myhost:~/project")
         self.assertEqual(args.marimo_command, "start")
 
     def test_marimo_start_no_open(self):
-        args = self._parse(["sft", "marimo", "start", "wsl-rs:~/project", "--no-open"])
+        args = self._parse(["sft", "marimo", "start", "myhost:~/project", "--no-open"])
         self.assertTrue(args.no_open)
 
     def test_marimo_start_no_agent(self):
-        args = self._parse(["sft", "marimo", "start", "wsl-rs:~/project", "--no-agent"])
+        args = self._parse(["sft", "marimo", "start", "myhost:~/project", "--no-agent"])
         self.assertTrue(args.no_agent)
 
     def test_marimo_start_port(self):
         args = self._parse(
-            ["sft", "marimo", "start", "wsl-rs:~/project", "--port", "9000"]
+            ["sft", "marimo", "start", "myhost:~/project", "--port", "9000"]
         )
         self.assertEqual(args.port, 9000)
 
     def test_marimo_start_no_auto_env(self):
         args = self._parse(
-            ["sft", "marimo", "start", "wsl-rs:~/project", "--no-auto-env"]
+            ["sft", "marimo", "start", "myhost:~/project", "--no-auto-env"]
         )
         self.assertTrue(args.no_auto_env)
 
     def test_marimo_start_background(self):
-        args = self._parse(["sft", "marimo", "start", "wsl-rs:~/project", "-b"])
+        args = self._parse(["sft", "marimo", "start", "myhost:~/project", "-b"])
         self.assertTrue(args.background)
 
     def test_marimo_start_background_long(self):
         args = self._parse(
-            ["sft", "marimo", "start", "wsl-rs:~/project", "--background"]
+            ["sft", "marimo", "start", "myhost:~/project", "--background"]
         )
         self.assertTrue(args.background)
 
@@ -585,9 +581,9 @@ class TestStartLocalAgentPathMapping(unittest.TestCase):
     def test_config_contains_exact_prefix_mapping(self, mock_popen):
         mock_popen.return_value = MagicMock(pid=12345)
         _start_local_agent(
-            mount_path="/home/user/mnt/wsl-rs/home/user/project",
+            mount_path="/home/user/mnt/myhost/home/user/project",
             agent_port=3023,
-            host_info=HostInfo("wsl-rs", "1.2.3.4", 22, "u", [], {}),
+            host_info=HostInfo("myhost", "1.2.3.4", 22, "u", [], {}),
             remote_root="/home/user/project",
             ctx=MagicMock(),
         )
@@ -598,7 +594,7 @@ class TestStartLocalAgentPathMapping(unittest.TestCase):
         all_text = " ".join(instructions)
         # Must contain the exact remote root and local mount
         self.assertIn("/home/user/project", all_text)
-        self.assertIn("/home/user/mnt/wsl-rs/home/user/project", all_text)
+        self.assertIn("/home/user/mnt/myhost/home/user/project", all_text)
         # Must contain mandatory mapping instruction
         self.assertIn("MANDATORY", all_text)
 
@@ -606,9 +602,9 @@ class TestStartLocalAgentPathMapping(unittest.TestCase):
     def test_config_uses_absolute_mount_path(self, mock_popen):
         mock_popen.return_value = MagicMock(pid=12345)
         _start_local_agent(
-            mount_path="~/mnt/wsl-rs/home/user/project",
+            mount_path="~/mnt/myhost/home/user/project",
             agent_port=3023,
-            host_info=HostInfo("wsl-rs", "1.2.3.4", 22, "u", [], {}),
+            host_info=HostInfo("myhost", "1.2.3.4", 22, "u", [], {}),
             remote_root="/home/user/project",
             ctx=MagicMock(),
         )
@@ -619,7 +615,7 @@ class TestStartLocalAgentPathMapping(unittest.TestCase):
         all_text = " ".join(instructions)
         # Should use absolute path, not tilde
         self.assertNotIn("~", all_text)
-        self.assertIn(os.path.abspath(os.path.expanduser("~/mnt/wsl-rs/home/user/project")), all_text)
+        self.assertIn(os.path.abspath(os.path.expanduser("~/mnt/myhost/home/user/project")), all_text)
 
     @patch("subprocess.Popen")
     def test_cwd_set_to_mount_path(self, mock_popen):

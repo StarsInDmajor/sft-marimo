@@ -12,10 +12,6 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Adjust import path for test environment — import marimo_client directly
-# to avoid importing the top-level __init__.py which imports server.py (needs mcp).
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 from sft_marimo.marimo_mcp.marimo_client import (
     CellInfo,
     CellOutput,
