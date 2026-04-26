@@ -1,5 +1,7 @@
 # sft-marimo
 
+**English** | [中文](README.zh-CN.md)
+
 Marimo notebook plugin for [sft](https://github.com/StarsInDmajor/sft). Provides remote marimo notebook server launch, local ACP agent (OpenCode) orchestration, and SSH port forwarding.
 
 ## What It Does
