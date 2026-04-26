@@ -10,7 +10,7 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "pulcerto", email = "pulcerto@users.noreply.github.com" }]
-dependencies = ["sft", "mcp>=1.0"]
+dependencies = ["sft @ git+https://github.com/StarsInDmajor/sft.git", "mcp>=1.0"]
 keywords = ["sft", "marimo", "notebook", "remote", "ssh"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -37,6 +37,9 @@ dev = ["pytest"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sft_marimo"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

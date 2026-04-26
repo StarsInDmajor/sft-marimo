@@ -52,6 +52,54 @@ def _find_free_port(start: int, end: int) -> int:
     raise RuntimeError(f"No free port in range {start}-{end}")
 
 
+def _find_free_port_remote(
+    start: int, end: int, host_info: HostInfo, ctx: ExecutionContext
+) -> int:
+    """Find a free port on the remote host in [start, end]."""
+    script = (
+        f"python3 -c \""
+        f"import socket,sys\\n"
+        f"for p in range({start},{end}+1):\\n"
+        f"  s=socket.socket()\\n"
+        f"  try:\\n"
+        f"    s.bind(('127.0.0.1',p))\\n"
+        f"    s.close()\\n"
+        f"    print(p)\\n"
+        f"    sys.exit(0)\\n"
+        f"  except OSError:\\n"
+        f"    s.close()\\n"
+        f"sys.exit(1)\\n"
+        f"\""
+    )
+    try:
+        out = ctx.run_ssh(host_info, script, capture=True, silent=True)
+        if out:
+            return int(out.strip())
+    except (RuntimeError, ValueError):
+        pass
+    raise RuntimeError(f"No free remote port in range {start}-{end}")
+
+
+def _find_free_port_both(
+    start: int, end: int, host_info: HostInfo, ctx: ExecutionContext
+) -> int:
+    """Find a port free on both local and remote host."""
+    for port in range(start, end + 1):
+        # Check local
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+        # Check remote
+        try:
+            _find_free_port_remote(port, port, host_info, ctx)
+        except RuntimeError:
+            continue
+        return port
+    raise RuntimeError(f"No free port (local+remote) in range {start}-{end}")
+
+
 def _find_marimo_bin(
     host_info: HostInfo, remote_path: str, ctx: ExecutionContext
 ) -> str:
@@ -657,8 +705,8 @@ def cmd_marimo_start(args, ctx: ExecutionContext) -> None:
         Theme.error(str(e))
         sys.exit(1)
 
-    # 5. Allocate ports
-    marimo_port = getattr(args, "port", None) or _find_free_port(8686, 8696)
+    # 5. Allocate ports (marimo port must be free on both sides)
+    marimo_port = getattr(args, "port", None) or _find_free_port_both(8686, 8696, host_info, ctx)
     agent_port = getattr(args, "agent_port", None) or _find_free_port(3023, 3033)
 
     # 6. Launch remote marimo (inside nix develop if detected)
