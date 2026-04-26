@@ -15,7 +15,7 @@ Marimo notebook plugin for [sft](https://github.com/StarsInDmajor/sft). Provides
 ## Installation
 
 ```bash
-pip install sft-marimo
+pip install git+https://github.com/StarsInDmajor/sft-marimo.git
 ```
 
 For NixOS, it's built as part of the `packages.sft` derivation alongside the core and other plugins.
